@@ -172,6 +172,7 @@ const held = {left:false, right:false};
 let jumpPressed = false;
 let worldTime = 0;
 let mode = 'play';      // play | draw | book | card
+let titleOpen = false;  // 标题页：按任意键/点一下就开始
 let lastPiece = null;   // 刚变出来的东西（用来高亮）
 let lastPieceT = 0;
 const keys = {};
@@ -855,6 +856,9 @@ window.addEventListener('keydown', (e)=>{
   keys[k] = true;
 
   if(k === 'f'){ toggleFullscreen(); return; }
+  if(titleOpen && k !== 'shift' && k !== 'control' && k !== 'alt' && k !== 'meta' && k !== 'tab'){
+    startGame(); return;
+  }
   if(mode === 'draw'){ if(k === 'escape'){ closeModal(); mode='play'; } return; }
   if(mode === 'book' || mode === 'card'){
     if(k === 'escape' || k === 'q' || k === 'e' || k === 'enter' || k === ' ') { closeModal(); mode='play'; }
@@ -934,6 +938,7 @@ function showHelp(){
 }
 
 function startGame(){
+  titleOpen = false;
   closeModal();
   mode = 'play';
   try{ if(!document.fullscreenElement) toggleFullscreen(); }catch(e){}
@@ -1012,12 +1017,13 @@ function loop(now){
 
 function showTitle(){
   mode = 'card';
+  titleOpen = true;
   cardEl.innerHTML =
     '<h2>✏️ 画出来的世界</h2>' +
     '<p class="sub">这是一本空白画本。<br>你画什么，它就会变成真的东西。</p>' +
     '<p class="sub">画一座桥、一根柱子、一块石头 —— 然后踩着它往前走。</p>' +
-    '<button class="main" data-act="start">进画本</button>' +
-    '<p class="sub" style="margin-top:10px;font-size:13px">键盘：← → 走路 · 空格 跳 · E 画画 · Q 图鉴</p>';
+    '<button class="main" data-act="start">进画本 ▶</button>' +
+    '<p class="sub" style="margin-top:10px;font-size:13px">按任意键也能开始 ♪<br>← → 走路 · 空格 跳 · E 画画 · Q 图鉴</p>';
   modalEl.classList.add('show');
 }
 requestAnimationFrame(loop);
