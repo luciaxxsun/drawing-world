@@ -1,0 +1,10 @@
+logs/
+截图/
+playtests/
+__pycache__/
+*.pyw
+启动*.vbs
+*.ico
+icon.png
+同步到GitHub.py
+自检报告.txt
