@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>画出来的世界</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23fbf7ee'/%3E%3Cpath d='M8 24 L22 8 l4 4 L12 26 z' fill='%23f2cf4a' stroke='%233b3730'/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<style>
+  :root{
+    --paper:#fbf7ee; --line:#d8e2ee; --ink:#3b3730; --soft:#8b8478;
+    --accent:#e0603c; --good:#4c9a4a; --card:#fffdf7;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:#e9e4d8;
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;color:var(--ink)}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+  #ui{position:absolute;pointer-events:none}
+  #hud{position:absolute;left:10px;top:8px;display:flex;gap:10px;align-items:center;
+    font-size:14px;background:rgba(255,253,247,.86);border:2px solid #d9d0bd;border-radius:10px;
+    padding:5px 10px;box-shadow:0 2px 0 #d9d0bd}
+  #hud b{color:var(--accent)}
+  #bar{width:70px;height:8px;border-radius:5px;background:#e2dccd;overflow:hidden}
+  #barIn{height:100%;width:0;background:var(--good);transition:width .25s}
+  #tools{position:absolute;right:8px;top:8px;display:flex;gap:6px;pointer-events:auto}
+  .tbtn{width:40px;height:40px;border-radius:10px;border:2px solid #d9d0bd;background:rgba(255,253,247,.9);
+    font-size:19px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;
+    box-shadow:0 2px 0 #d9d0bd;user-select:none}
+  .tbtn:active{transform:translateY(2px);box-shadow:none}
+  #hint{position:absolute;left:50%;top:60px;transform:translateX(-50%);font-size:14px;
+    background:rgba(59,55,48,.86);color:#fff;padding:6px 14px;border-radius:20px;opacity:0;
+    transition:opacity .2s;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
+  #hint.show{opacity:1}
+  /* 手机按钮 */
+  #pad{position:absolute;left:0;right:0;bottom:0;height:0;pointer-events:none;display:none}
+  .pbtn{position:absolute;width:64px;height:64px;border-radius:50%;background:rgba(255,253,247,.72);
+    border:2px solid #cfc6b4;font-size:26px;display:flex;align-items:center;justify-content:center;
+    pointer-events:auto;user-select:none;color:#5a5449}
+  #pl{left:14px;bottom:18px} #pr{left:92px;bottom:18px}
+  #pj{right:104px;bottom:18px} #pe{right:22px;bottom:18px;font-size:20px}
+  /* 卡片 */
+  #modal{position:fixed;inset:0;background:rgba(40,36,30,.55);display:none;align-items:center;
+    justify-content:center;padding:12px;z-index:20}
+  #modal.show{display:flex}
+  #card{background:var(--card);border-radius:18px;border:3px solid #d9d0bd;box-shadow:0 8px 0 #c9bfa9;
+    padding:16px;width:min(96vw,560px);max-height:92vh;overflow:auto;text-align:center}
+  #card h2{margin:.1em 0 .35em;font-size:21px}
+  #card p.sub{margin:.1em 0 .8em;color:var(--soft);font-size:14px;line-height:1.5}
+  #card button{font:inherit;font-size:15px;padding:9px 18px;border-radius:11px;border:2px solid #c9bfa9;
+    background:#fff;color:var(--ink);cursor:pointer;box-shadow:0 3px 0 #c9bfa9;margin:4px}
+  #card button.main{background:var(--accent);color:#fff;border-color:#b64a2b;box-shadow:0 3px 0 #b64a2b}
+  #card button:active{transform:translateY(2px);box-shadow:none}
+  .btnrow{position:sticky;bottom:-2px;background:var(--card);padding:6px 0 2px;margin-top:2px}
+  #card.compact{padding:10px}
+  #card.compact h2{font-size:18px;margin:0 0 .2em}
+  #card.compact p.sub{display:none}
+  #card.compact button{padding:7px 14px;font-size:14px}
+  /* 画板 */
+  #drawWrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  #padCanvas{border:3px solid #cfc6b4;border-radius:8px;background:#fff;touch-action:none;
+    image-rendering:pixelated;cursor:crosshair}
+  #palette{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:420px}
+  .sw{width:28px;height:28px;border-radius:8px;border:2px solid #c9bfa9;cursor:pointer}
+  .sw.on{outline:3px solid #3b3730;outline-offset:1px}
+  .sw.lock{opacity:.18;cursor:not-allowed}
+  #sizes{display:flex;gap:6px}
+  .sz{width:34px;height:30px;border-radius:8px;border:2px solid #c9bfa9;background:#fff;cursor:pointer;
+    display:flex;align-items:center;justify-content:center}
+  .sz.on{background:#3b3730}
+  .sz i{display:block;background:#3b3730;border-radius:2px}
+  .sz.on i{background:#fff}
+  /* 图鉴 */
+  #book{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:9px;margin-top:6px}
+  .bk{border:2px solid #e0d8c6;border-radius:10px;padding:6px;background:#fff}
+  .bk img{width:100%;aspect-ratio:1/1;object-fit:contain;image-rendering:pixelated;display:block;
+    border-radius:4px;background:#fdfcf8}
+  .bk span{display:block;font-size:12px;margin-top:4px;color:#5a5449;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bk.empty{background:#f3eee2;border-style:dashed}
+  #rot{position:fixed;inset:0;background:#2b2822;color:#fff;display:none;align-items:center;
+    justify-content:center;font-size:18px;z-index:50;text-align:center;padding:30px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+  <div id="ui">
+    <div id="hud">
+      <span>📖 图鉴 <b id="hBook">0</b>/20</span>
+      <span>🖌 <b id="hBrush">Lv1</b></span>
+      <div id="bar"><div id="barIn"></div></div>
+    </div>
+    <div id="tools">
+      <div class="tbtn" id="btnBook" title="图鉴">📖</div>
+      <div class="tbtn" id="btnHelp" title="怎么玩">？</div>
+      <div class="tbtn" id="btnFull" title="全屏">⛶</div>
+    </div>
+    <div id="hint"></div>
+    <div id="pad">
+      <div class="pbtn" id="pl">◀</div>
+      <div class="pbtn" id="pr">▶</div>
+      <div class="pbtn" id="pj">⤒</div>
+      <div class="pbtn" id="pe">✏️</div>
+    </div>
+  </div>
+</div>
+<div id="modal"><div id="card"></div></div>
+<div id="rot">把手机横过来玩更好 ♪</div>
+
+<script>
+/* ============================================================
+   画出来的世界 —— 你画什么，它就在世界里变成真的
+   ============================================================ */
+
+const CFG = {
+  VIEW_W: 480, VIEW_H: 270,      // 一屏有多少游戏像素（窗口大小变了只改缩放）
+  CELL: 5,                        // 画板上一格 = 世界里 5 像素（24 格 = 120 像素宽，够搭桥）
+  BOARD: 24,                      // 画板 24×24 格
+  GRAVITY: 940,                   // 往下掉的力气
+  MOVE: 116,                      // 走路速度
+  JUMP: 335,                      // 跳起来的力气
+  PW: 10, PH: 19,                 // 小铅笔人有多宽多高
+  WORLD_W: 2400,
+  GROUND_Y: 226                   // 地面高度
+};
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const ui = document.getElementById('ui');
+const hintEl = document.getElementById('hint');
+const modalEl = document.getElementById('modal');
+const cardEl = document.getElementById('card');
+
+/* ---------------- 调色板（16 色，前 8 是蜡笔就有，后 8 要解锁） ---------------- */
+const PAL = [
+  '#ffffff', '#3b3730', '#e0603c', '#ef9f3a', '#f2cf4a', '#6fbf5a',
+  '#4a8fd8', '#9a6cd0', '#e57aa8', '#f7f3e8', '#c8bda6', '#8b6b4a',
+  '#5ad0c8', '#ffd166', '#ff6b6b', '#7cf29a'
+];
+
+/* ---------------- 画笔等级（图鉴收集到 5/10/15/20 各解锁一级） ---------------- */
+const BRUSH_LEVELS = [
+  {lv:1, name:'铅笔',   colors:4,  sizes:[1],     hint:'黑、红、橙、黄，四种颜色随便画'},
+  {lv:2, name:'蜡笔',   colors:9,  sizes:[1,2],   hint:'多了 5 种颜色，还能画粗一点'},
+  {lv:3, name:'水彩',   colors:13, sizes:[1,2,3], hint:'颜色几乎全开，还有最粗的笔'},
+  {lv:4, name:'荧光笔', colors:16, sizes:[1,2,3], hint:'16 种颜色全开'},
+  {lv:5, name:'彩虹笔', colors:16, sizes:[1,2,3], hint:'画着画着自己变颜色'}
+];
+const UNLOCK_AT = [5, 10, 15, 20];
+
+/* ---------------- 世界：一段一段的地面，中间故意断开 ---------------- */
+const GROUND = [
+  {x:0,    w:560},
+  {x:660,  w:390},
+  {x:1150, w:370},
+  {x:1620, w:780}
+];
+const GAPS = [
+  {x:560, w:100, tip:'前面断开了……按 E 画一座桥试试'},
+  {x:1050,w:100, tip:'又断了，画个能踩的东西'},
+  {x:1520,w:100, tip:'最后一处断口，随便你画什么'}
+];
+
+/* ---------------- 状态 ---------------- */
+const player = {x:80, y:CFG.GROUND_Y-CFG.PH, vx:0, vy:0, w:CFG.PW, h:CFG.PH,
+                face:1, onGround:false, walk:0, blink:0, blinkT:1.5};
+let pieces = [];        // 画出来的东西
+let book = [];          // 图鉴（每一格 = 一种画过的东西）
+let brushLv = 1;
+let camX = 0;
+let hintT = 0, hintMsg = '';
+const held = {left:false, right:false};
+let jumpPressed = false;
+let worldTime = 0;
+let mode = 'play';      // play | draw | book | card
+let lastPiece = null;   // 刚变出来的东西（用来高亮）
+let lastPieceT = 0;
+const keys = {};
+
+/* ---------------- 存档 ---------------- */
+const SAVE_KEY = 'drawingworld.v1';
+let save = {pieces:[], book:[], lv:1, x:80};
+function persist(){
+  try{
+    save.pieces = pieces.map(p=>({x:p.wx, y:p.wy, cells:Array.from(p.cells).join('')}));
+    save.book = book.map(b=>({name:b.name, art:b.art, sig:b.sig}));
+    save.lv = brushLv;
+    save.x = Math.round(player.x);
+    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+  }catch(e){}
+}
+function loadSave(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return;
+    const o = JSON.parse(raw);
+    if(o && Array.isArray(o.pieces)){
+      pieces = o.pieces.map(o2=>makePieceFromCells(o2.cells, o2.x, o2.y)).filter(Boolean);
+    }
+    if(o && Array.isArray(o.book)) book = o.book;
+    if(o && o.lv) brushLv = o.lv;
+    if(o && typeof o.x === 'number') player.x = o.x;
+  }catch(e){}
+}
+
+/* ---------------- 画出来的东西 = 一块像素 ---------------- */
+function makePiece(cells, bbox, wx, wy){
+  const off = document.createElement('canvas');
+  off.width = CFG.BOARD; off.height = CFG.BOARD;
+  const c = off.getContext('2d');
+  for(let y=0;y<CFG.BOARD;y++) for(let x=0;x<CFG.BOARD;x++){
+    const v = cells[y*CFG.BOARD+x];
+    if(!v) continue;
+    c.fillStyle = PAL[v] || '#3b3730';
+    c.fillRect(x,y,1,1);
+  }
+  return {cells:cells, bbox:bbox, wx:wx, wy:wy, art:off, solid:true};
+}
+function makePieceFromCells(str, wx, wy){
+  if(typeof str !== 'string' || str.length !== CFG.BOARD*CFG.BOARD) return null;
+  const cells = new Uint8Array(CFG.BOARD*CFG.BOARD);
+  for(let i=0;i<cells.length;i++) cells[i] = parseInt(str[i], 36) || 0;
+  const bbox = bboxOf(cells);
+  if(!bbox) return null;
+  return makePiece(cells, bbox, wx, wy);
+}
+function bboxOf(cells){
+  let x0=99,x1=-1,y0=99,y1=-1,n=0;
+  for(let y=0;y<CFG.BOARD;y++) for(let x=0;x<CFG.BOARD;x++){
+    if(cells[y*CFG.BOARD+x]){ n++; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+  }
+  if(!n) return null;
+  return {x0:x0,y0:y0,x1:x1,y1:y1,w:x1-x0+1,h:y1-y0+1,n:n};
+}
+
+/* ---------------- 碰撞：像素级的 ---------------- */
+function solidAt(x, y){
+  if(y >= CFG.GROUND_Y){
+    for(const g of GROUND) if(x >= g.x && x < g.x+g.w) return true;
+    return false;
+  }
+  for(const p of pieces){
+    const lx = Math.floor((x - p.wx)/CFG.CELL), ly = Math.floor((y - p.wy)/CFG.CELL);
+    if(lx < 0 || ly < 0 || lx >= CFG.BOARD || ly >= CFG.BOARD) continue;
+    if(p.cells[ly*CFG.BOARD+lx]) return true;
+  }
+  return false;
+}
+// 小台阶自动抬腿：撞到不超过 9px 的坎，直接迈上去（不然画一座桥像一堵墙）
+function stepUp(nx){
+  for(let lift=2; lift<=9; lift++){
+    if(!boxHits(nx, player.y - lift, player.w, player.h-1) &&
+       !boxHits(player.x, player.y - lift, player.w, player.h-1)){
+      player.y -= lift;
+      player.x = nx;
+      return true;
+    }
+  }
+  return false;
+}
+function boxHits(x, y, w, h){
+  const step = 3;
+  for(let sx = 0; sx <= w; sx += step) for(let sy = 0; sy <= h; sy += step){
+    if(solidAt(x + Math.min(sx, w), y + Math.min(sy, h))) return true;
+  }
+  if(solidAt(x+w, y+0)) return true;
+  if(solidAt(x+w, y+h)) return true;
+  if(solidAt(x+0, y+h)) return true;
+  return false;
+}
+
+/* ---------------- 声音（先用内置的小合成，后面换成插件做的音效） ---------------- */
+let AC = null;
+function ac(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return AC; }
+function beep(freq, dur, type, vol){
+  const a = ac(); if(!a) return;
+  try{
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type || 'square'; o.frequency.value = freq;
+    g.gain.value = vol || 0.05;
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + (dur||0.09));
+    o.connect(g); g.connect(a.destination);
+    o.start(); o.stop(a.currentTime + (dur||0.09));
+  }catch(e){}
+}
+/* 音效文件（用 gameforge 的 forge_sfx 做的） */
+const SFX_FILES = {stamp:'assets/sfx/stamp.wav', draw:'assets/sfx/draw.wav',
+                   unlock:'assets/sfx/unlock.wav', page:'assets/sfx/page.wav'};
+const samples = {};
+function loadSfx(){
+  for(const k in SFX_FILES){
+    try{ const a = new Audio(SFX_FILES[k]); a.preload = 'auto'; a.volume = 0.45; samples[k] = a; }catch(e){}
+  }
+}
+function playSfx(k){
+  const a = samples[k];
+  if(!a) return false;
+  try{ a.currentTime = 0; const pr = a.play(); if(pr && pr.catch) pr.catch(()=>{}); return true; }catch(e){ return false; }
+}
+const SFX = {
+  step:  ()=>beep(300 + Math.random()*90, 0.03, 'square', 0.018),
+  jump:  ()=>{ beep(440,0.07,'square',0.035); setTimeout(()=>beep(620,0.07,'square',0.03),50); },
+  stamp: ()=>{ if(!playSfx('stamp')){ beep(520,0.09,'triangle',0.05); setTimeout(()=>beep(780,0.12,'triangle',0.045),80); } },
+  pen:   ()=>{ if(!playSfx('draw')) beep(900,0.02,'sine',0.012); },
+  book:  ()=>{ beep(660,0.08,'sine',0.04); setTimeout(()=>beep(990,0.1,'sine',0.035),80); },
+  unlock:()=>{ if(!playSfx('unlock')) [523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,0.13,'triangle',0.05), i*95)); },
+  undo:  ()=>beep(200,0.12,'sawtooth',0.035)
+};
+
+/* ---------------- 提示条 ---------------- */
+function toast(msg, sec){
+  hintMsg = msg; hintT = sec || 2.6;
+  hintEl.textContent = msg;
+  hintEl.classList.add('show');
+}
+
+/* ---------------- 尺寸 / 缩放 ---------------- */
+let scale = 2;
+function resize(){
+  const rot = document.getElementById('rot');
+  if(rot) rot.style.display = (('ontouchstart' in window) && innerHeight > innerWidth*1.15) ? 'flex' : 'none';
+  const ratio = innerWidth / Math.max(1, innerHeight);
+  let vh = CFG.VIEW_H;
+  let vw = Math.round(vh * ratio / 2) * 2;
+  vw = Math.max(360, Math.min(vw, CFG.WORLD_W));
+  CFG.VW = vw; CFG.VH = vh;
+  cv.width = vw; cv.height = vh;
+  ctx.imageSmoothingEnabled = false;
+  const s = Math.min(innerWidth / vw, innerHeight / vh);
+  scale = Math.max(0.9, Math.floor(s*40)/40);
+  const cw = Math.round(vw*scale), ch = Math.round(vh*scale);
+  cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
+  ui.style.width = cw + 'px'; ui.style.height = ch + 'px';
+  ui.style.position = 'absolute';
+  ui.style.left = Math.round((innerWidth - cw)/2) + 'px';
+  ui.style.top = Math.round((innerHeight - ch)/2) + 'px';
+  const pad = document.getElementById('pad');
+  if(pad) pad.style.display = ('ontouchstart' in window) ? 'block' : 'none';
+}
+window.addEventListener('resize', resize);
+
+/* ---------------- 更新 ---------------- */
+function update(dt){
+  worldTime += dt;
+  // 走路
+  let ax = 0;
+  if(held.left) ax -= 1;
+  if(held.right) ax += 1;
+  if(keys['arrowleft'] || keys['a']) ax = -1;
+  if(keys['arrowright'] || keys['d']) ax = 1;
+  player.vx = ax * CFG.MOVE;
+  if(ax !== 0) player.face = ax > 0 ? 1 : -1;
+
+  // 跳
+  if(jumpPressed && player.onGround){
+    player.vy = -CFG.JUMP;
+    player.onGround = false;
+    SFX.jump();
+  }
+  jumpPressed = false;
+
+  // 重力
+  player.vy += CFG.GRAVITY * dt;
+  if(player.vy > 620) player.vy = 620;
+
+  // 分步移动，避免穿过去
+  const steps = Math.max(1, Math.ceil((Math.abs(player.vx)+Math.abs(player.vy))*dt/4));
+  const sdt = dt/steps;
+  const canStep = player.onGround;      // 站在地上才能自动抬腿上小台阶
+  player.onGround = false;
+  for(let i=0;i<steps;i++){
+    // 横向（高度缩 1px：脚贴地面时不算撞墙）
+    const nx = player.x + player.vx*sdt;
+    if(!boxHits(nx, player.y, player.w, player.h-1)) player.x = nx;
+    else if(canStep && stepUp(nx)) { /* 抬上去了 */ }
+    else player.vx = 0;
+    // 纵向（宽度缩 1px）
+    const ny = player.y + player.vy*sdt;
+    if(!boxHits(player.x, ny, player.w-1, player.h)) player.y = ny;
+    else {
+      if(player.vy > 0) player.onGround = true;
+      player.vy = 0;
+    }
+  }
+
+  // 走路 / 眨眼
+  if(Math.abs(player.vx) > 1 && player.onGround){
+    player.walk += dt*10;
+    if(Math.random() < dt*8) SFX.step();
+  }else{
+    player.walk *= 0.86;
+  }
+  player.blinkT -= dt;
+  if(player.blinkT <= 0){ player.blink = 0.12; player.blinkT = 1.6 + Math.random()*2.4; }
+  if(player.blink > 0) player.blink -= dt;
+
+  // 掉出世界 → 轻轻飘回来，不会死
+  if(player.y > CFG.VIEW_H + 40){
+    player.x = Math.max(40, player.x - 160);
+    player.y = CFG.GROUND_Y - 80;
+    player.vy = 0;
+    toast('飘回来啦，接着画 ♪', 2);
+  }
+
+  // 边界
+  player.x = Math.max(6, Math.min(CFG.WORLD_W - player.w - 6, player.x));
+
+  // 相机
+  const targetX = Math.max(0, Math.min(CFG.WORLD_W - CFG.VW, player.x + player.w/2 - CFG.VW/2));
+  camX += (targetX - camX) * Math.min(1, dt*7);
+
+  // 断口提示
+  for(const g of GAPS){
+    if(player.x > g.x - 60 && player.x < g.x + g.w + 10 && hintT <= 0){
+      let bridged = false;
+      for(const p of pieces) if(Math.abs(p.wx - g.x) < g.w + 40) bridged = true;
+      if(!bridged) toast(g.tip, 3.4);
+    }
+  }
+  if(player.x > CFG.WORLD_W - 60 && hintT <= 0 && !save.endShown){
+    save.endShown = true; persist();
+    toast('走到画本尽头啦，这里可以随便画', 3);
+  }
+
+  if(hintT > 0){ hintT -= dt; if(hintT <= 0) hintEl.classList.remove('show'); }
+  if(lastPieceT > 0) lastPieceT -= dt;
+  updateHud();
+}
+
+/* ---------------- HUD ---------------- */
+let lastHud = '';
+function updateHud(){
+  const next = UNLOCK_AT.find(v => book.length < v);
+  const s = book.length + '|' + brushLv + '|' + (next || 0);
+  if(s === lastHud) return;
+  lastHud = s;
+  document.getElementById('hBook').textContent = book.length;
+  document.getElementById('hBrush').textContent = 'Lv' + brushLv;
+  const bar = document.getElementById('barIn');
+  if(next){
+    const prev = UNLOCK_AT[UNLOCK_AT.indexOf(next)-1] || 0;
+    bar.style.width = Math.round((book.length - prev) / (next - prev) * 100) + '%';
+  }else bar.style.width = '100%';
+}
+
+/* ---------------- 渲染 ---------------- */
+function render(){
+  const VW = CFG.VW, VH = CFG.VH;
+  // 纸
+  ctx.fillStyle = '#fbf7ee';
+  ctx.fillRect(0,0,VW,VH);
+  // 方格纸纹（跟着相机移动）
+  ctx.strokeStyle = '#dfe8f2'; ctx.lineWidth = 1;
+  const gs = 24;
+  const ox = -Math.round(camX) % gs;
+  ctx.beginPath();
+  for(let x = ox; x < VW; x += gs){ ctx.moveTo(x+.5, 0); ctx.lineTo(x+.5, VH); }
+  for(let y = 0; y < VH; y += gs){ ctx.moveTo(0, y+.5); ctx.lineTo(VW, y+.5); }
+  ctx.stroke();
+
+  ctx.save();
+  ctx.translate(-Math.round(camX), 0);
+
+  // 远处的小山（铅笔淡淡的）
+  drawBackdrop();
+
+  // 地面：像在纸上画出来的一条地
+  const gy = CFG.GROUND_Y;
+  for(const g of GROUND){
+    ctx.fillStyle = '#efe8d6';
+    ctx.fillRect(g.x, gy, g.w, CFG.VIEW_H - gy);
+    // 斜线阴影
+    ctx.strokeStyle = 'rgba(59,55,48,.16)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for(let x = g.x + 4; x < g.x + g.w; x += 7){
+      ctx.moveTo(x, gy + 5); ctx.lineTo(x - 5, gy + 14);
+    }
+    ctx.stroke();
+    // 顶边（粗一点的铅笔线）
+    ctx.fillStyle = '#3b3730';
+    ctx.fillRect(g.x, gy, g.w, 2);
+    // 再下一条淡线
+    ctx.fillStyle = 'rgba(59,55,48,.35)';
+    ctx.fillRect(g.x, gy + 3, g.w, 1);
+  }
+
+  // 画出来的东西
+  for(const p of pieces){
+    ctx.drawImage(p.art, Math.round(p.wx), Math.round(p.wy), CFG.BOARD*CFG.CELL, CFG.BOARD*CFG.CELL);
+    if(p === lastPiece && lastPieceT > 0){
+      ctx.strokeStyle = 'rgba(224,96,60,' + (0.35 + 0.45*Math.abs(Math.sin(worldTime*8))) + ')';
+      ctx.lineWidth = 2;
+      const b = p.bbox;
+      ctx.strokeRect(Math.round(p.wx + b.x0*CFG.CELL)-2, Math.round(p.wy + b.y0*CFG.CELL)-2,
+                     b.w*CFG.CELL+4, b.h*CFG.CELL+4);
+    }
+  }
+
+  // 小人
+  drawPlayer();
+
+  ctx.restore();
+
+  // 图鉴集满的小彩带
+  if(book.length >= 20) drawConfetti();
+}
+
+function drawBackdrop(){
+  // 太阳
+  ctx.strokeStyle = 'rgba(240,190,90,.55)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(120 - 0, 52, 20, 0, Math.PI*2); ctx.stroke();
+  for(let i=0;i<8;i++){
+    const a = i/8*Math.PI*2 + worldTime*0.1;
+    ctx.beginPath();
+    ctx.moveTo(120 + Math.cos(a)*26, 52 + Math.sin(a)*26);
+    ctx.lineTo(120 + Math.cos(a)*33, 52 + Math.sin(a)*33);
+    ctx.stroke();
+  }
+  // 云（铅笔描边）
+  ctx.strokeStyle = 'rgba(140,160,185,.5)';
+  const clouds = [[360,44],[900,60],[1420,40],[1980,56]];
+  for(const [cx,cy] of clouds){
+    const drift = Math.sin(worldTime*0.4 + cx)*3;
+    ctx.beginPath();
+    ctx.arc(cx+drift, cy, 13, Math.PI, 0);
+    ctx.arc(cx+drift+16, cy-5, 10, Math.PI, 0);
+    ctx.arc(cx+drift-16, cy+2, 9, Math.PI, 0);
+    ctx.stroke();
+  }
+  // 远山
+  ctx.strokeStyle = 'rgba(150,165,185,.42)'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for(let i=0;i<6;i++){
+    const bx = 80 + i*420;
+    ctx.moveTo(bx, CFG.GROUND_Y);
+    ctx.lineTo(bx+90, CFG.GROUND_Y-70);
+    ctx.lineTo(bx+180, CFG.GROUND_Y);
+  }
+  ctx.stroke();
+}
+
+function drawPlayer(){
+  const x = Math.round(player.x), y = Math.round(player.y);
+  const bob = player.onGround ? Math.round(Math.sin(player.walk)*1) : 0;
+  const w = player.w, h = player.h;
+
+  // 影子
+  ctx.fillStyle = 'rgba(59,55,48,.12)';
+  ctx.beginPath(); ctx.ellipse(x+w/2, CFG.GROUND_Y-2, 6, 2, 0, 0, Math.PI*2); ctx.fill();
+
+  ctx.save();
+  ctx.translate(x + w/2, y + h/2 + bob);
+  if(!player.onGround) ctx.rotate(player.vy < 0 ? -0.1 : 0.08);
+
+  const L = -Math.floor(w/2), R = L + w;
+  const T = -Math.floor(h/2);
+  // 描边
+  ctx.fillStyle = '#3b3730';
+  ctx.fillRect(L-1, T-1, w+2, h+2);
+  // 橡皮
+  ctx.fillStyle = '#ef8fb4'; ctx.fillRect(L, T, w, 4);
+  ctx.fillStyle = '#d97fa2'; ctx.fillRect(L, T+3, w, 1);
+  // 铁皮
+  ctx.fillStyle = '#bdb6a8'; ctx.fillRect(L, T+4, w, 1);
+  // 笔杆
+  ctx.fillStyle = '#f2cf4a'; ctx.fillRect(L, T+5, w, 9);
+  ctx.fillStyle = '#ffdd70'; ctx.fillRect(L+1, T+5, 2, 9);
+  ctx.fillStyle = '#d9b636'; ctx.fillRect(R-2, T+5, 2, 9);
+  // 削出来的木头（一层层变窄）
+  const wood = [[L+0, w-0], [L+1, w-2], [L+2, w-4]];
+  let wy = T+14;
+  for(const [wx, ww] of wood){
+    ctx.fillStyle = '#ecd9b4'; ctx.fillRect(wx, wy, ww, 1);
+    wy++;
+  }
+  // 笔尖
+  ctx.fillStyle = '#3b3730';
+  ctx.fillRect(L+3, T+17, w-6, 1);
+  ctx.fillRect(L+4, T+18, w-8, 1);
+
+  // 眼睛
+  const ey = T + 7;
+  if(player.blink > 0){
+    ctx.fillStyle = '#3b3730';
+    ctx.fillRect(L+1, ey+2, 2, 1); ctx.fillRect(R-3, ey+2, 2, 1);
+  }else{
+    ctx.fillStyle = '#fff'; ctx.fillRect(L+1, ey, 3, 3); ctx.fillRect(R-4, ey, 3, 3);
+    ctx.fillStyle = '#3b3730';
+    ctx.fillRect(player.face>0? L+2 : L+1, ey+1, 2, 2);
+    ctx.fillRect(player.face>0? R-4 : R-5, ey+1, 2, 2);
+  }
+  // 腮红 + 嘴
+  ctx.fillStyle = 'rgba(229,122,168,.9)';
+  ctx.fillRect(L+1, ey+4, 2, 1); ctx.fillRect(R-3, ey+4, 2, 1);
+  ctx.fillStyle = '#3b3730';
+  ctx.fillRect(L + (player.face>0? 5 : 4), ey+4, 1, 1);
+  ctx.restore();
+}
+
+let confetti = [];
+function drawConfetti(){
+  if(confetti.length === 0)
+    for(let i=0;i<30;i++) confetti.push({x:Math.random()*CFG.VW, y:Math.random()*CFG.VH,
+      vy:8+Math.random()*22, hue:Math.random()*360, s:2+Math.random()*2});
+  for(const c of confetti){
+    c.y += c.vy*0.016;
+    if(c.y > CFG.VH) c.y = -6;
+    ctx.fillStyle = 'hsl(' + c.hue + ',70%,62%)';
+    ctx.fillRect(c.x, c.y, c.s, c.s);
+  }
+}
+
+/* ---------------- 画板 ---------------- */
+let padCv = null, padCtx = null, padCells = null, curColor = 1, curSize = 1, erasing = false;
+function openDraw(){
+  mode = 'draw';
+  padCells = new Uint8Array(CFG.BOARD*CFG.BOARD);
+  const compact = innerHeight < 580 || innerWidth < 700;
+  const chromeH = compact ? 132 : 250;
+  const avail = Math.min(innerHeight * 0.94 - chromeH, innerWidth * 0.86 - 40);
+  const Z = Math.max(5, Math.min(13, Math.floor(avail / CFG.BOARD)));
+  const size = CFG.BOARD * Z;
+  cardEl.innerHTML =
+    '<h2>✏️ 画点什么</h2>' +
+    '<p class="sub">随手画就行 —— 它会长成真的东西，可以踩、可以挡路。<br>画宽一点像桥，画高一点像柱子。</p>' +
+    '<div id="drawWrap">' +
+      '<canvas id="padCanvas" width="' + size + '" height="' + size + '"></canvas>' +
+      '<div id="palette"></div>' +
+      '<div id="sizes"></div>' +
+      '<div class="btnrow"><button id="dClear">清空</button><button id="dCancel">先不画</button>' +
+      '<button class="main" id="dOk">变出来！</button></div>' +
+    '</div>';
+  cardEl.className = compact ? 'compact' : '';
+  modalEl.classList.add('show');
+  padCv = document.getElementById('padCanvas');
+  padCtx = padCv.getContext('2d');
+  padCtx.imageSmoothingEnabled = false;
+
+  const lvl = BRUSH_LEVELS[brushLv-1];
+  // 颜色
+  const palEl = document.getElementById('palette');
+  for(let i=1;i<PAL.length;i++){
+    const d = document.createElement('div');
+    d.className = 'sw' + (i >= lvl.colors ? ' lock' : '') + (i === curColor ? ' on' : '');
+    d.style.background = PAL[i];
+    d.dataset.i = i;
+    if(i < lvl.colors) d.addEventListener('pointerdown', ()=>{
+      curColor = i; erasing = false;
+      [...palEl.children].forEach(c=>c.classList.toggle('on', +c.dataset.i === i));
+    });
+    palEl.appendChild(d);
+  }
+  // 粗细
+  const szEl = document.getElementById('sizes');
+  lvl.sizes.forEach(sz=>{
+    const b = document.createElement('div');
+    b.className = 'sz' + (sz === curSize ? ' on' : '');
+    b.innerHTML = '<i style="width:' + (sz*3) + 'px;height:' + (sz*3) + 'px"></i>';
+    b.addEventListener('pointerdown', ()=>{
+      curSize = sz;
+      [...szEl.children].forEach((c,k)=>c.classList.toggle('on', lvl.sizes[k] === sz));
+    });
+    szEl.appendChild(b);
+  });
+  document.getElementById('dClear').onclick = ()=>{ padCells.fill(0); padRender(); };
+  document.getElementById('dCancel').onclick = ()=>{ closeModal(); mode = 'play'; };
+  document.getElementById('dOk').onclick = ()=>stamp();
+
+  padRender();
+  bindPad();
+}
+function padRender(){
+  const size = padCv.width / CFG.BOARD;
+  padCtx.fillStyle = '#fff';
+  padCtx.fillRect(0,0,padCv.width,padCv.height);
+  // 淡淡的格子
+  padCtx.fillStyle = '#eef2f7';
+  for(let i=1;i<CFG.BOARD;i++){
+    padCtx.fillRect(i*size, 0, 1, padCv.height);
+    padCtx.fillRect(0, i*size, padCv.width, 1);
+  }
+  const lvl = BRUSH_LEVELS[brushLv-1];
+  for(let y=0;y<CFG.BOARD;y++) for(let x=0;x<CFG.BOARD;x++){
+    const v = padCells[y*CFG.BOARD+x];
+    if(!v) continue;
+    padCtx.fillStyle = PAL[v];
+    padCtx.fillRect(x*size, y*size, size, size);
+  }
+}
+function bindPad(){
+  let drawing = false, lastCell = null, rainbowIdx = 0;
+  const toCell = (ev)=>{
+    const r = padCv.getBoundingClientRect();
+    const x = Math.floor((ev.clientX - r.left) / r.width * CFG.BOARD);
+    const y = Math.floor((ev.clientY - r.top) / r.height * CFG.BOARD);
+    return [Math.max(0,Math.min(CFG.BOARD-1,x)), Math.max(0,Math.min(CFG.BOARD-1,y))];
+  };
+  const paintAt = (x,y)=>{
+    const lvl = BRUSH_LEVELS[brushLv-1];
+    let color = erasing ? 0 : curColor;
+    if(brushLv === 5 && !erasing){ color = 1 + (rainbowIdx++ % Math.max(1, lvl.colors-1)); }
+    const half = Math.floor((curSize-1)/2);
+    for(let dy=-half; dy<=half; dy++) for(let dx=-half; dx<=half; dx++){
+      const nx = x+dx, ny = y+dy;
+      if(nx<0||ny<0||nx>=CFG.BOARD||ny>=CFG.BOARD) continue;
+      padCells[ny*CFG.BOARD+nx] = color;
+    }
+  };
+  const dot = (x,y)=>{
+    // 两点之间补线，鼠标快了也不会断
+    if(lastCell && (Math.abs(x-lastCell[0])>1 || Math.abs(y-lastCell[1])>1)){
+      const n = Math.max(Math.abs(x-lastCell[0]), Math.abs(y-lastCell[1]));
+      for(let i=0;i<=n;i++){
+        paintAt(Math.round(lastCell[0] + (x-lastCell[0])*i/n), Math.round(lastCell[1] + (y-lastCell[1])*i/n));
+      }
+    }else paintAt(x,y);
+    lastCell = [x,y];
+  };
+  padCv.addEventListener('pointerdown', (ev)=>{
+    ev.preventDefault(); padCv.setPointerCapture(ev.pointerId);
+    drawing = true; lastCell = null;
+    const [x,y] = toCell(ev); dot(x,y); padRender(); SFX.pen();
+  });
+  padCv.addEventListener('pointermove', (ev)=>{
+    if(!drawing) return;
+    ev.preventDefault();
+    const [x,y] = toCell(ev); dot(x,y); padRender();
+  });
+  const up = (ev)=>{ drawing = false; lastCell = null; };
+  padCv.addEventListener('pointerup', up);
+  padCv.addEventListener('pointercancel', up);
+  // 右键 / 长按 = 橡皮
+  padCv.addEventListener('contextmenu', (e)=>e.preventDefault());
+}
+
+function stamp(){
+  const bb = bboxOf(padCells);
+  if(!bb){ toast('先画点什么呀', 2); return; }
+  // 放在小人面前，底边对着脚
+  const wpx = bb.w*CFG.CELL, hpx = bb.h*CFG.CELL;
+  let px = player.face > 0 ? player.x + player.w + 6 : player.x - 6 - wpx;
+  px = Math.max(4, Math.min(CFG.WORLD_W - wpx - 4, px));
+  let py = player.y + player.h - hpx;
+  // 如果会盖住小人，往上挪
+  const wx = px - bb.x0*CFG.CELL, wy = py - bb.y0*CFG.CELL;
+  const piece = makePiece(padCells.slice(), bb, wx, wy);
+  // 别把自己卡在墙里：试几个位置
+  const tries = [0, -14, 14, -28, 28, -42, 42];
+  let placed = false;
+  for(const d of tries){
+    const testX = wx + d;
+    piece.wx = testX;
+    if(!boxHits(player.x, player.y, player.w, player.h) || d === tries[tries.length-1]){ placed = true; break; }
+  }
+  pieces.push(piece);
+  lastPiece = piece; lastPieceT = 1.4;
+  SFX.stamp();
+  // 图鉴
+  const sig = Array.from(padCells).join('');
+  const known = book.find(b=>b.sig === sig);
+  if(!known){
+    const nm = guessName(padCells, bb);
+    const art = miniArt(padCells);
+    book.push({name:nm, art:art, sig:sig});
+    SFX.book();
+    toast('📖 图鉴多了一格：' + nm + '（' + book.length + '/20）', 2.8);
+    checkUnlock();
+  }else{
+    toast('这是「' + known.name + '」呀，图鉴里已经有了', 2.4);
+  }
+  closeModal(); mode = 'play';
+  persist();
+}
+
+function miniArt(cells){
+  const c = document.createElement('canvas');
+  c.width = CFG.BOARD; c.height = CFG.BOARD;
+  const g = c.getContext('2d');
+  for(let y=0;y<CFG.BOARD;y++) for(let x=0;x<CFG.BOARD;x++){
+    const v = cells[y*CFG.BOARD+x];
+    if(!v) continue;
+    g.fillStyle = PAL[v]; g.fillRect(x,y,1,1);
+  }
+  try{ return c.toDataURL('image/png'); }catch(e){ return ''; }
+}
+
+/* 猜名字：按形状瞎猜一个，猜错也没关系，图鉴里可以不管它 */
+function guessName(cells, bb){
+  const colors = new Set();
+  for(const v of cells) if(v) colors.add(v);
+  const ratio = bb.w / bb.h;
+  const fill = bb.n / (bb.w*bb.h);
+  const pick = (arr)=>arr[Math.floor(Math.random()*arr.length)];
+  if(colors.size >= 5) return pick(['彩虹','花布','彩色旗子','糖果']);
+  if(bb.n <= 3) return pick(['一粒豆','小点','种子']);
+  if(ratio >= 2.2 && bb.h <= 8){
+    const long = bb.w >= 20 ? '长长的' : (bb.w <= 10 ? '短短的' : '');
+    return pick(['桥','木板','横梁','长凳','独木桥']).replace(/^/, long);
+  }
+  if(ratio <= 0.45 && bb.h >= 10) return pick(['梯子','柱子','旗杆','塔']);
+  if(ratio > 0.75 && ratio < 1.35 && fill > 0.55) return pick(['石头','砖头','方块','饼干']);
+  if(fill < 0.22) return pick(['蜘蛛网','架子','树枝','渔网']);
+  if(bb.w >= 16 && bb.h >= 16) return pick(['大山','大云','大石头','房子']);
+  return pick(['小凳子','小台阶','矮墙','小箱子']);
+}
+
+function checkUnlock(){
+  const idx = UNLOCK_AT.findIndex(v => book.length >= v && brushLv < 1 + UNLOCK_AT.indexOf(v) + 1);
+  const want = 1 + UNLOCK_AT.filter(v => book.length >= v).length;
+  if(want > brushLv && want <= BRUSH_LEVELS.length){
+    brushLv = want;
+    const lvl = BRUSH_LEVELS[brushLv-1];
+    SFX.unlock();
+    setTimeout(()=>{
+      openCard('<div class="badge">Lv' + brushLv + '</div><h2>🖌 新画笔：' + lvl.name + '</h2>' +
+        '<p class="sub">' + lvl.hint + '</p>' +
+        '<p class="sub">图鉴里已经有 ' + book.length + ' 种东西了</p>' +
+        '<button class="main" data-act="ok">继续画</button>');
+    }, 400);
+  }
+}
+
+/* ---------------- 图鉴 ---------------- */
+function openBook(){
+  mode = 'book';
+  playSfx('page');
+  cardEl.className = '';
+  let html = '<h2>📖 我的图鉴</h2><p class="sub">画出 ' + book.length + ' 种东西 · 画笔 ' + BRUSH_LEVELS[brushLv-1].name +
+    '<br>' + (book.length < 20 ? '再画 ' + (20-book.length) + ' 种就能集满' : '集满啦！') + '</p><div id="book">';
+  for(let i=0;i<Math.max(6, book.length);i++){
+    const b = book[i];
+    if(b) html += '<div class="bk"><img src="' + b.art + '" alt=""><span>' + b.name + '</span></div>';
+    else html += '<div class="bk empty"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt=""><span>? ?</span></div>';
+  }
+  html += '</div><div style="margin-top:14px"><button class="main" data-act="close">合上</button></div>';
+  cardEl.innerHTML = html;
+  modalEl.classList.add('show');
+}
+
+/* ---------------- 卡片 ---------------- */
+function openCard(inner){
+  cardEl.className = '';
+  cardEl.innerHTML = inner;
+  modalEl.classList.add('show');
+  mode = 'card';
+}
+function closeModal(){
+  modalEl.classList.remove('show');
+  cardEl.innerHTML = '';
+}
+
+/* ---------------- 输入 ---------------- */
+window.addEventListener('keydown', (e)=>{
+  const k = e.key.toLowerCase();
+  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+  keys[k] = true;
+
+  if(k === 'f'){ toggleFullscreen(); return; }
+  if(mode === 'draw'){ if(k === 'escape'){ closeModal(); mode='play'; } return; }
+  if(mode === 'book' || mode === 'card'){
+    if(k === 'escape' || k === 'q' || k === 'e' || k === 'enter' || k === ' ') { closeModal(); mode='play'; }
+    return;
+  }
+  if(k === 'arrowup' || k === 'w' || k === ' ') jumpPressed = true;
+  if(k === 'e'){ openDraw(); return; }
+  if(k === 'q' || k === 'tab'){ e.preventDefault(); openBook(); return; }
+  if(k === 'x'){ removeNearest(); return; }
+});
+window.addEventListener('keyup', (e)=>{ keys[e.key.toLowerCase()] = false; });
+
+function removeNearest(){
+  let best = null, bd = 1e9;
+  for(const p of pieces){
+    const cx = p.wx + p.bbox.x0*CFG.CELL + p.bbox.w*CFG.CELL/2;
+    const cy = p.wy + p.bbox.y0*CFG.CELL + p.bbox.h*CFG.CELL/2;
+    const d = Math.hypot(cx - (player.x+player.w/2), cy - (player.y+player.h/2));
+    if(d < bd){ bd = d; best = p; }
+  }
+  if(best && bd < 120){
+    pieces = pieces.filter(p=>p!==best);
+    SFX.undo();
+    toast('拆掉啦（图鉴里还留着）', 2);
+    persist();
+  }else{
+    toast('旁边没有可以拆的东西', 1.8);
+  }
+}
+
+/* ---------------- 触摸按钮 ---------------- */
+function bindBtn(el, down, up){
+  el.addEventListener('pointerdown', (ev)=>{ ev.preventDefault(); down(); });
+  el.addEventListener('pointerup', (ev)=>{ ev.preventDefault(); up && up(); });
+  el.addEventListener('pointercancel', ()=>{ up && up(); });
+  el.addEventListener('pointerleave', ()=>{ up && up(); });
+}
+bindBtn(document.getElementById('pl'), ()=>held.left=true, ()=>held.left=false);
+bindBtn(document.getElementById('pr'), ()=>held.right=true, ()=>held.right=false);
+bindBtn(document.getElementById('pj'), ()=>jumpPressed=true);
+bindBtn(document.getElementById('pe'), ()=>{ if(mode==='play') openDraw(); });
+document.getElementById('btnBook').onclick = ()=>{ if(mode==='play') openBook(); };
+document.getElementById('btnHelp').onclick = showHelp;
+document.getElementById('btnFull').onclick = toggleFullscreen;
+cardEl.addEventListener('click', (ev)=>{
+  const t = ev.target;
+  if(t.dataset && t.dataset.act === 'close'){ closeModal(); mode='play'; }
+  if(t.dataset && t.dataset.act === 'ok'){ closeModal(); mode='play'; }
+  if(t.dataset && t.dataset.act === 'start'){ startGame(); }
+});
+
+function toggleFullscreen(){
+  try{
+    if(!document.fullscreenElement){
+      const pr = document.documentElement.requestFullscreen();
+      if(pr && pr.catch) pr.catch(()=>{});
+    }else{
+      const pr = document.exitFullscreen();
+      if(pr && pr.catch) pr.catch(()=>{});
+    }
+  }catch(e){}
+}
+
+function showHelp(){
+  openCard('<h2>🖌 怎么玩</h2>' +
+    '<p class="sub">你在一本空白画本里，画什么都会变成真的。</p>' +
+    '<ul style="text-align:left;font-size:15px;line-height:1.9;margin:0 auto 12px;max-width:380px;padding-left:20px">' +
+    '<li>← → 或 A D 走路，空格 / ↑ 跳</li>' +
+    '<li><b>E</b> 打开画板，画完点「变出来」</li>' +
+    '<li>画的东西能踩、能挡路 —— 断开的路上画个桥</li>' +
+    '<li><b>Q</b> 看图鉴，<b>X</b> 拆掉身边的东西</li>' +
+    '<li>每画出一种新东西，图鉴 +1</li>' +
+    '<li>图鉴到 5 / 10 / 15 / 20 种，解锁新画笔</li>' +
+    '</ul><p class="sub">不会摔死，掉下去会飘回来 ♪</p>' +
+    '<button class="main" data-act="close">知道了</button>');
+  mode = 'card';
+}
+
+function startGame(){
+  closeModal();
+  mode = 'play';
+  try{ if(!document.fullscreenElement) toggleFullscreen(); }catch(e){}
+  beep(520,0.08,'triangle',0.04);
+  setTimeout(()=>beep(720,0.1,'triangle',0.04), 90);
+}
+
+/* ---------------- 调试口（给我自己验收用） ---------------- */
+window.__gameforge = {
+  state:{scene:'title', x:0, y:0, score:0, deaths:0, wins:0},
+  fps:60, events:[],
+  controls:{start:['Enter',' '], move:['ArrowLeft','ArrowRight'], action:['e']}
+};
+window.__act = {
+  start(){ startGame(); },
+  hold(dir, sec){ held[dir] = true; for(let i=0;i<Math.round((sec||0.5)/0.016);i++) update(0.016); held[dir] = false; render(); },
+  jump(){ jumpPressed = true; update(0.016); render(); },
+  draw(cells, x, y){
+    // cells: 24×24 的数组（0/颜色下标）
+    padCells = Uint8Array.from(cells);
+    const bb = bboxOf(padCells);
+    if(!bb) return '空';
+    // x = 左边缘, y = 底边缘（跟 stamp() 里的放法一致）
+    const wx = (x === undefined ? player.x + player.w + 6 : x) - bb.x0*CFG.CELL;
+    const wy = (y === undefined ? player.y + player.h : y) - (bb.y0 + bb.h)*CFG.CELL;
+    const p = makePiece(padCells.slice(), bb, wx, wy);
+    pieces.push(p); lastPiece = p; lastPieceT = 1.4;
+    const sig = Array.from(padCells).join('');
+    if(!book.find(b=>b.sig===sig)){ book.push({name:guessName(padCells, bb), art:miniArt(padCells), sig:sig}); checkUnlock(); }
+    persist(); render(); return bb;
+  },
+  line(y, thick, x0, x1){
+    const c = new Uint8Array(CFG.BOARD*CFG.BOARD);
+    for(let t=0;t<(thick||1);t++) for(let x=(x0||0);x<=(x1===undefined?CFG.BOARD-1:x1);x++) c[(y+t)*CFG.BOARD+x] = 2;
+    return Array.from(c);
+  },
+  state(){ return {x:Math.round(player.x), y:Math.round(player.y), onGround:player.onGround, pieces:pieces.length, book:book.length, lv:brushLv}; },
+  teleport(x, y){ player.x = x; player.y = (y===undefined? CFG.GROUND_Y-CFG.PH : y); player.vy = 0; camX = Math.max(0, Math.min(CFG.WORLD_W-CFG.VW, x - CFG.VW/2)); render(); return true; },
+  solidAt(x,y){ return solidAt(x,y); },
+  book(){ return book.map(b=>b.name); },
+  clear(){ pieces = []; book = []; brushLv = 1; persist(); render(); },
+  removeAll(){ pieces = []; render(); },
+  bookUI(){ openBook(); return true; },
+  drawUI(){ openDraw(); return true; },
+  stampUI(){ stamp(); return true; },
+  tear(x, y, cells){ // 直接放一块，指定世界坐标
+    const c = Uint8Array.from(cells); const bb = bboxOf(c); if(!bb) return '空';
+    const p = makePiece(c, bb, x - bb.x0*CFG.CELL, y - bb.y0*CFG.CELL);
+    pieces.push(p); persist(); render(); return true;
+  }
+};
+
+/* ---------------- 启动 ---------------- */
+loadSfx();
+loadSave();
+resize();
+render();
+updateHud();
+showTitle();
+
+let last = performance.now();
+let gFrames = 0, gT = 0;
+function loop(now){
+  const dt = Math.min(0.033, (now - last)/1000);
+  last = now;
+  if(mode === 'play') update(dt);
+  render();
+  gFrames++; gT += dt;
+  if(gT >= 0.5){ window.__gameforge.fps = Math.round(gFrames/gT); gFrames = 0; gT = 0; }
+  const gf = window.__gameforge.state;
+  gf.scene = mode;
+  gf.x = Math.round(player.x); gf.y = Math.round(player.y);
+  gf.score = book.length;
+  requestAnimationFrame(loop);
+}
+
+function showTitle(){
+  mode = 'card';
+  cardEl.innerHTML =
+    '<h2>✏️ 画出来的世界</h2>' +
+    '<p class="sub">这是一本空白画本。<br>你画什么，它就会变成真的东西。</p>' +
+    '<p class="sub">画一座桥、一根柱子、一块石头 —— 然后踩着它往前走。</p>' +
+    '<button class="main" data-act="start">进画本</button>' +
+    '<p class="sub" style="margin-top:10px;font-size:13px">键盘：← → 走路 · 空格 跳 · E 画画 · Q 图鉴</p>';
+  modalEl.classList.add('show');
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
